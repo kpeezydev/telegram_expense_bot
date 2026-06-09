@@ -1,4 +1,4 @@
-name: Hourly Report
+name: Bot Service
 
 on:
   schedule:
