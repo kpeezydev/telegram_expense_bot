@@ -53,6 +53,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
              "- 'buy food - $10 - Jun 9'\n"
              "- 'spent 15 on coffee today'\n\n"
              "You can also ask me for the 'total expense' to see how much you've spent this month.\n\n"
+             "To delete an expense, say something like 'delete expense test - $10 - Jun 9' or 'delete expense #3'.\n\n"
              "Your expenses are securely saved to the cloud, and a daily report is generated automatically."
     )
 
@@ -65,7 +66,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
              "1. *Adding an expense*: Just type what you spent. E.g., 'Groceries $50 yesterday'.\n"
              "2. *Checking total*: Type 'total expense' or 'how much did I spend this month?'.\n"
              "3. *Listing expenses*: Ask 'show my expenses this month' or 'list from June 1 to June 10'.\n"
-             "4. *Reports*: A daily report is automatically generated and uploaded.",
+             "4. *Deleting expenses*: Say 'delete expense test - $10 - Jun 9' or 'delete expense #3'.\n"
+             "5. *Reports*: A daily report is automatically generated and uploaded.",
         parse_mode='Markdown'
     )
 
@@ -136,11 +138,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines = [f"📋 Expenses from {start_date} to {end_date}:"]
             total = 0.0
             for exp in expenses:
+                eid = exp.get('id', '')
                 d = exp.get('date', '')
                 desc = exp.get('description', '')
                 amt = exp.get('amount', 0)
                 total += amt
-                lines.append(f"• {d}  {desc}  ${amt:.2f}")
+                lines.append(f"• #{eid}  {d}  {desc}  ${amt:.2f}")
             lines.append(f"\n**Total: ${total:.2f}**")
 
             await context.bot.send_message(
@@ -173,11 +176,90 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text="Sorry, there was an error calculating your total."
             )
 
+    elif intent == 'delete_expense':
+        data = parsed_data.get('data', {})
+        expense_id = data.get('id')
+
+        try:
+            if expense_id is not None:
+                # Delete by ID
+                deleted = supabase_client.delete_expense_by_id(user_id, expense_id)
+                if deleted:
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text=f"🗑 Deleted expense #{expense_id}."
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text=f"No expense found with ID {expense_id}."
+                    )
+            else:
+                description = data.get('description')
+                amount = data.get('amount')
+                date_str = data.get('date')
+
+                if not description and amount is None and not date_str:
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text="Could you be more specific? Tell me the description, amount, or date of the expense you'd like to delete."
+                    )
+                    return
+
+                matches = supabase_client.find_expenses_by_match(
+                    user_id, description=description, amount=amount, expense_date=date_str
+                )
+
+                if len(matches) == 0:
+                    parts = []
+                    if description:
+                        parts.append(f"'{description}'")
+                    if amount is not None:
+                        parts.append(f"${amount:.2f}")
+                    if date_str:
+                        parts.append(date_str)
+                    criteria = " - ".join(parts)
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text=f"No expense found matching {criteria}."
+                    )
+
+                elif len(matches) == 1:
+                    exp = matches[0]
+                    eid = exp.get('id')
+                    supabase_client.delete_expense(eid)
+                    desc = exp.get('description', '')
+                    amt = exp.get('amount', 0)
+                    dt = exp.get('date', '')
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text=f"🗑 Deleted expense: {desc} - ${amt:.2f} - {dt}"
+                    )
+
+                else:
+                    lines = ["Multiple expenses match. Which one would you like to delete? Reply with the ID number (e.g., 'delete expense #3'):"]
+                    for exp in matches:
+                        eid = exp.get('id')
+                        d = exp.get('date', '')
+                        desc = exp.get('description', '')
+                        amt = exp.get('amount', 0)
+                        lines.append(f"  #{eid}  {d}  {desc}  ${amt:.2f}")
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text="\n".join(lines)
+                    )
+        except Exception as e:
+            logger.error(f"Error deleting expense: {e}")
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Sorry, there was an error deleting this expense."
+            )
+
     else:
         # Unknown intent
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="I'm not sure what you mean. You can tell me an expense (e.g., 'spent 10 on food'), ask for 'total expense', or list expenses by timeframe (e.g., 'show my expenses this month')."
+            text="I'm not sure what you mean. You can tell me an expense (e.g., 'spent 10 on food'), ask for 'total expense', list expenses by timeframe (e.g., 'show my expenses this month'), or delete an expense (e.g., 'delete expense test - $10 - Jun 9')."
         )
 
 if __name__ == '__main__':

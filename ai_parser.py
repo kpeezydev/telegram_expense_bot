@@ -32,6 +32,7 @@ The user will either:
 1. Provide an expense in various formats (e.g., "name of expense - amount - date", "I spent $10 on food", "15 for coffee yesterday").
 2. Ask for the total expense (e.g., "total expense", "how much did I spend this month?").
 3. Ask to list expenses within a timeframe (e.g., "show me my expenses this week", "list expenses from June 1 to June 15", "what did I spend last month?").
+4. Ask to delete an expense (e.g., "delete expense test - $100 - Jun 10", "delete the tuna I bought for $5 last June 6", "delete expense #3").
 
 Determine the intent and extract information.
 
@@ -39,6 +40,7 @@ Possible intents:
 - "add_expense"
 - "get_total"
 - "list_expenses"
+- "delete_expense"
 - "unknown"
 
 If intent is "add_expense", provide:
@@ -51,6 +53,14 @@ If intent is "get_total", you don't need to provide description, amount, or date
 If intent is "list_expenses", provide:
 - "start_date": A string in "YYYY-MM-DD" format representing the start of the requested timeframe.
 - "end_date": A string in "YYYY-MM-DD" format representing the end of the requested timeframe.
+
+If intent is "delete_expense", provide:
+- "description": The description of the expense to delete (if mentioned).
+- "amount": The amount of the expense to delete (if mentioned).
+- "date": The date of the expense to delete (if mentioned, in YYYY-MM-DD format).
+- "id": The numeric ID of the expense to delete (if the user references an ID like "#3" or "expense 3").
+
+Extract whatever fields the user provides. The user may reference an expense by ID (e.g., "delete expense #3"), by a combination of description + amount + date (e.g., "delete lunch - $15 - yesterday"), or by description alone (e.g., "delete the tuna expense"). Only populate the fields the user explicitly mentions.
 
 Resolve relative time expressions based on today's date ({current_date}):
 - "this week": Monday through Sunday of the current week.
@@ -72,7 +82,7 @@ Resolve relative time expressions based on today's date ({current_date}):
                     "properties": {
                         "intent": {
                             "type": "STRING", 
-                            "enum": ["add_expense", "get_total", "list_expenses", "unknown"]
+                            "enum": ["add_expense", "get_total", "list_expenses", "delete_expense", "unknown"]
                         },
                         "data": {
                             "type": "OBJECT",
@@ -81,7 +91,8 @@ Resolve relative time expressions based on today's date ({current_date}):
                                 "amount": {"type": "NUMBER"},
                                 "date": {"type": "STRING"},
                                 "start_date": {"type": "STRING"},
-                                "end_date": {"type": "STRING"}
+                                "end_date": {"type": "STRING"},
+                                "id": {"type": "INTEGER"}
                             }
                         }
                     },

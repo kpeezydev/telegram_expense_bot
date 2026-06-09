@@ -84,3 +84,40 @@ def get_expenses_in_range(user_id: int, start_date: str, end_date: str) -> list:
         .execute()
 
     return response.data
+
+
+def find_expenses_by_match(user_id: int, description: str = None, amount: float = None,
+                           expense_date: str = None) -> list:
+    """Find expenses matching the given criteria for a user.
+    All params except user_id are optional — only provided ones are used as filters."""
+    supabase = get_supabase()
+    query = supabase.table("expenses").select("*").eq("user_id", user_id)
+    if description:
+        query = query.ilike("description", f"%{description}%")
+    if amount is not None:
+        query = query.eq("amount", amount)
+    if expense_date:
+        query = query.eq("date", expense_date)
+    response = query.order("date").execute()
+    return response.data
+
+
+def delete_expense_by_id(user_id: int, expense_id: int) -> bool:
+    """Delete an expense by ID, scoped to the given user. Returns True if deleted."""
+    supabase = get_supabase()
+    response = supabase.table("expenses") \
+        .delete() \
+        .eq("id", expense_id) \
+        .eq("user_id", user_id) \
+        .execute()
+    return len(response.data) > 0
+
+
+def delete_expense(expense_id: int) -> bool:
+    """Low-level delete by ID without user scoping. Returns True if deleted."""
+    supabase = get_supabase()
+    response = supabase.table("expenses") \
+        .delete() \
+        .eq("id", expense_id) \
+        .execute()
+    return len(response.data) > 0
