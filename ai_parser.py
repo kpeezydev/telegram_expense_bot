@@ -29,7 +29,7 @@ Today's date is: {current_date}
 The current year is: {current_year}
 
 The user will either:
-1. Provide an expense in various formats (e.g., "name of expense - amount - date", "I spent $10 on food", "15 for coffee yesterday").
+1. Provide one or more expenses. Messages can contain multiple expenses separated by newlines, numbered lists, bullet lists, or commas (e.g., "tuna - $10 - June 1\ncheese - $5 - June 2", "1. milk $3 2. bread $2", "coffee $5 today, lunch $15 yesterday").
 2. Ask for the total expense (e.g., "total expense", "how much did I spend this month?").
 3. Ask to list expenses within a timeframe (e.g., "show me my expenses this week", "list expenses from June 1 to June 15", "what did I spend last month?").
 4. Ask to delete an expense (e.g., "delete expense test - $100 - Jun 10", "delete the tuna I bought for $5 last June 6", "delete expense #3").
@@ -37,16 +37,18 @@ The user will either:
 Determine the intent and extract information.
 
 Possible intents:
-- "add_expense"
+- "add_expenses"
 - "get_total"
 - "list_expenses"
 - "delete_expense"
 - "unknown"
 
-If intent is "add_expense", provide:
-- "description": A short string describing what the expense was.
-- "amount": A float representing the amount spent.
-- "date": A string in "YYYY-MM-DD" format. Infer the date if they use words like "today", "yesterday", or just a month/day based on the current year. If no date is provided, assume today.
+If intent is "add_expenses", provide:
+- "expenses": A JSON array of expense objects. Each object must have:
+  - "description": A short string describing what the expense was.
+  - "amount": A float representing the amount spent.
+  - "date": A string in "YYYY-MM-DD" format. Infer the date if they use words like "today", "yesterday", or just a month/day based on the current year. If no date is provided, assume today.
+Even if only one expense is detected, still return it as a single-element array.
 
 If intent is "get_total", you don't need to provide description, amount, or date.
 
@@ -82,14 +84,22 @@ Resolve relative time expressions based on today's date ({current_date}):
                     "properties": {
                         "intent": {
                             "type": "STRING", 
-                            "enum": ["add_expense", "get_total", "list_expenses", "delete_expense", "unknown"]
+                            "enum": ["add_expenses", "get_total", "list_expenses", "delete_expense", "unknown"]
                         },
                         "data": {
                             "type": "OBJECT",
                             "properties": {
-                                "description": {"type": "STRING"},
-                                "amount": {"type": "NUMBER"},
-                                "date": {"type": "STRING"},
+                                "expenses": {
+                                    "type": "ARRAY",
+                                    "items": {
+                                        "type": "OBJECT",
+                                        "properties": {
+                                            "description": {"type": "STRING"},
+                                            "amount": {"type": "NUMBER"},
+                                            "date": {"type": "STRING"}
+                                        }
+                                    }
+                                },
                                 "start_date": {"type": "STRING"},
                                 "end_date": {"type": "STRING"},
                                 "id": {"type": "INTEGER"}
@@ -114,3 +124,4 @@ if __name__ == "__main__":
     print(parse_user_message("buy food - $10 - Jun 9"))
     print(parse_user_message("total expense"))
     print(parse_user_message("spent 15 bucks on coffee today"))
+    print(parse_user_message("tuna - $10 - June 1\ncheese - $5 - June 2\npaper towel - $5 - Jun 7\nelectricity - $100 - June 8"))

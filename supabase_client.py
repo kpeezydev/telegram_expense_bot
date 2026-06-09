@@ -14,6 +14,22 @@ def get_supabase() -> Client:
         raise ValueError("SUPABASE_URL or SUPABASE_KEY is missing in environment variables.")
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def add_expenses_batch(user_id: int, expenses: list) -> list:
+    """Insert multiple expenses in a single batch call.
+    Each expense dict must have 'description', 'amount', 'date' keys."""
+    supabase = get_supabase()
+    rows = []
+    for exp in expenses:
+        rows.append({
+            "user_id": user_id,
+            "description": exp["description"],
+            "amount": exp["amount"],
+            "date": exp["date"]
+        })
+    response = supabase.table("expenses").insert(rows).execute()
+    return response.data
+
+
 def add_expense(user_id: int, description: str, amount: float, expense_date: str) -> dict:
     """Insert a new expense into Supabase."""
     supabase = get_supabase()

@@ -52,6 +52,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
              "You can send me your expenses in plain English, for example:\n"
              "- 'buy food - $10 - Jun 9'\n"
              "- 'spent 15 on coffee today'\n\n"
+             "You can also send multiple expenses at once, one per line:\n"
+             "- 'tuna - $10 - June 1\\ncheese - $5 - June 2'\n\n"
              "You can also ask me for the 'total expense' to see how much you've spent this month.\n\n"
              "To delete an expense, say something like 'delete expense test - $10 - Jun 9' or 'delete expense #3'.\n\n"
              "Your expenses are securely saved to the cloud, and a daily report is generated automatically."
@@ -63,7 +65,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="*Expense Tracker Help*\n\n"
-             "1. *Adding an expense*: Just type what you spent. E.g., 'Groceries $50 yesterday'.\n"
+             "1. *Adding expenses*: Just type what you spent. E.g., 'Groceries $50 yesterday'. You can also send multiple expenses at once, one per line:\n"
+             "   'tuna - $10 - June 1\\ncheese - $5 - June 2'\n"
              "2. *Checking total*: Type 'total expense' or 'how much did I spend this month?'.\n"
              "3. *Listing expenses*: Ask 'show my expenses this month' or 'list from June 1 to June 10'.\n"
              "4. *Deleting expenses*: Say 'delete expense test - $10 - Jun 9' or 'delete expense #3'.\n"
@@ -82,32 +85,75 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     intent = parsed_data.get('intent')
     
-    if intent == 'add_expense':
-        data = parsed_data.get('data', {})
-        description = data.get('description', 'Unknown expense')
-        amount = data.get('amount')
-        date_str = data.get('date') # Expected YYYY-MM-DD
-        
-        if amount is None or not date_str:
+    if intent == 'add_expenses':
+        expenses = parsed_data.get('data', {}).get('expenses', [])
+
+        if not expenses:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="I couldn't quite understand the amount or date. Could you rephrase?"
+                text="I couldn't find any expenses in your message. Could you rephrase?"
             )
             return
 
-        try:
-            # Save to database
-            supabase_client.add_expense(user_id, description, amount, date_str)
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"✅ Added expense:\nDescription: {description}\nAmount: ${amount}\nDate: {date_str}"
-            )
-        except Exception as e:
-            logger.error(f"Error adding expense: {e}")
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="Sorry, there was an error saving your expense."
-            )
+        valid = []
+        invalid = []
+        for exp in expenses:
+            desc = exp.get('description', 'Unknown')
+            amt = exp.get('amount')
+            date_str = exp.get('date')
+            if amt is not None and date_str:
+                valid.append(exp)
+            else:
+                invalid.append(exp)
+
+        inserted = []
+        failed = []
+
+        if valid:
+            try:
+                supabase_client.add_expenses_batch(user_id, valid)
+                inserted = valid
+            except Exception as e:
+                logger.warning(f"Batch insert failed, falling back to one-by-one: {e}")
+                for exp in valid:
+                    try:
+                        supabase_client.add_expense(
+                            user_id,
+                            exp['description'],
+                            exp['amount'],
+                            exp['date']
+                        )
+                        inserted.append(exp)
+                    except Exception as e2:
+                        logger.error(f"Error inserting expense: {e2}")
+                        failed.append(exp)
+
+        invalid.extend(failed)
+
+        parts = []
+        if inserted:
+            lines = [f"✅ Added {len(inserted)} expense(s):"]
+            for exp in inserted:
+                lines.append(f"  • {exp['description']} — ${exp['amount']:.2f} — {exp['date']}")
+            parts.append("\n".join(lines))
+        if invalid:
+            lines = [f"⚠️ Could not add {len(invalid)} expense(s):"]
+            for exp in invalid:
+                desc = exp.get('description', 'Unknown')
+                amt = exp.get('amount')
+                date_str = exp.get('date')
+                missing = []
+                if amt is None:
+                    missing.append("amount")
+                if not date_str:
+                    missing.append("date")
+                lines.append(f"  • {desc} (missing: {', '.join(missing)})")
+            parts.append("\n".join(lines))
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="\n\n".join(parts)
+        )
 
     elif intent == 'list_expenses':
         data = parsed_data.get('data', {})
