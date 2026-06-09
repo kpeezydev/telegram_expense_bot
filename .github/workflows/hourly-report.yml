@@ -27,15 +27,9 @@ jobs:
           echo "$GCP_CREDENTIALS" > credentials.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/credentials.json" >> $GITHUB_ENV
 
-      - name: Debug environment
-        run: |
-          echo "SUPABASE_URL: ${{ secrets.SUPABASE_URL != '' && 'SET' || 'MISSING' }}"
-          echo "SUPABASE_KEY: ${{ secrets.SUPABASE_KEY != '' && 'SET' || 'MISSING' }}"
-          echo "DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID != '' && 'SET' || 'MISSING' }}"
-
       - name: Generate and upload report
         run: python generate_daily_report.py
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ vars.SUPABASE_KEY }}
+          DRIVE_FOLDER_ID: ${{ vars.DRIVE_FOLDER_ID }}
