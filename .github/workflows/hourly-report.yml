@@ -20,10 +20,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Set up GCP credentials
+      - name: Create Google Credentials File
         run: |
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > gcp-credentials.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/gcp-credentials.json" >> $GITHUB_ENV
+          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}" > credentials.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/credentials.json" >> $GITHUB_ENV
 
       - name: Generate and upload report
         run: python generate_daily_report.py
