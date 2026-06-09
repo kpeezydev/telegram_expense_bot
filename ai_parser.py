@@ -31,12 +31,14 @@ The current year is: {current_year}
 The user will either:
 1. Provide an expense in various formats (e.g., "name of expense - amount - date", "I spent $10 on food", "15 for coffee yesterday").
 2. Ask for the total expense (e.g., "total expense", "how much did I spend this month?").
+3. Ask to list expenses within a timeframe (e.g., "show me my expenses this week", "list expenses from June 1 to June 15", "what did I spend last month?").
 
 Determine the intent and extract information.
 
 Possible intents:
 - "add_expense"
 - "get_total"
+- "list_expenses"
 - "unknown"
 
 If intent is "add_expense", provide:
@@ -45,6 +47,17 @@ If intent is "add_expense", provide:
 - "date": A string in "YYYY-MM-DD" format. Infer the date if they use words like "today", "yesterday", or just a month/day based on the current year. If no date is provided, assume today.
 
 If intent is "get_total", you don't need to provide description, amount, or date.
+
+If intent is "list_expenses", provide:
+- "start_date": A string in "YYYY-MM-DD" format representing the start of the requested timeframe.
+- "end_date": A string in "YYYY-MM-DD" format representing the end of the requested timeframe.
+
+Resolve relative time expressions based on today's date ({current_date}):
+- "this week": Monday through Sunday of the current week.
+- "this month": First through last day of the current month.
+- "last week": Monday through Sunday of the previous week.
+- "last month": First through last day of the previous month.
+- "from X to Y" or "between X and Y": Use the explicit dates provided.
 """
 
         response = client.models.generate_content(
@@ -59,14 +72,16 @@ If intent is "get_total", you don't need to provide description, amount, or date
                     "properties": {
                         "intent": {
                             "type": "STRING", 
-                            "enum": ["add_expense", "get_total", "unknown"]
+                            "enum": ["add_expense", "get_total", "list_expenses", "unknown"]
                         },
                         "data": {
                             "type": "OBJECT",
                             "properties": {
                                 "description": {"type": "STRING"},
                                 "amount": {"type": "NUMBER"},
-                                "date": {"type": "STRING"}
+                                "date": {"type": "STRING"},
+                                "start_date": {"type": "STRING"},
+                                "end_date": {"type": "STRING"}
                             }
                         }
                     },

@@ -64,7 +64,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="*Expense Tracker Help*\n\n"
              "1. *Adding an expense*: Just type what you spent. E.g., 'Groceries $50 yesterday'.\n"
              "2. *Checking total*: Type 'total expense' or 'how much did I spend this month?'.\n"
-             "3. *Reports*: A daily report is automatically generated and uploaded.",
+             "3. *Listing expenses*: Ask 'show my expenses this month' or 'list from June 1 to June 10'.\n"
+             "4. *Reports*: A daily report is automatically generated and uploaded.",
         parse_mode='Markdown'
     )
 
@@ -106,6 +107,54 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text="Sorry, there was an error saving your expense."
             )
 
+    elif intent == 'list_expenses':
+        data = parsed_data.get('data', {})
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+
+        if not start_date or not end_date:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Could you specify a timeframe? For example: 'show my expenses this month' or 'list expenses from June 1 to June 15'."
+            )
+            return
+
+        # Swap if dates are reversed
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+
+        try:
+            expenses = supabase_client.get_expenses_in_range(user_id, start_date, end_date)
+
+            if not expenses:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=f"No expenses found from {start_date} to {end_date}."
+                )
+                return
+
+            lines = [f"📋 Expenses from {start_date} to {end_date}:"]
+            total = 0.0
+            for exp in expenses:
+                d = exp.get('date', '')
+                desc = exp.get('description', '')
+                amt = exp.get('amount', 0)
+                total += amt
+                lines.append(f"• {d}  {desc}  ${amt:.2f}")
+            lines.append(f"\n**Total: ${total:.2f}**")
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="\n".join(lines),
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logger.error(f"Error listing expenses: {e}")
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Sorry, there was an error retrieving your expenses."
+            )
+
     elif intent == 'get_total':
         today = datetime.now()
         try:
@@ -128,7 +177,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Unknown intent
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="I'm not sure what you mean. You can tell me an expense (e.g., 'spent 10 on food') or ask for 'total expense'."
+            text="I'm not sure what you mean. You can tell me an expense (e.g., 'spent 10 on food'), ask for 'total expense', or list expenses by timeframe (e.g., 'show my expenses this month')."
         )
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -65,4 +66,21 @@ def get_expenses_for_month(user_id: int, year: int, month: int) -> list:
         .order("date") \
         .execute()
     
+    return response.data
+
+def get_expenses_in_range(user_id: int, start_date: str, end_date: str) -> list:
+    """Retrieve all expenses for a user within a date range (inclusive)."""
+    supabase = get_supabase()
+    # Add one day to end_date so the range is inclusive
+    end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+    end_exclusive = end.strftime("%Y-%m-%d")
+
+    response = supabase.table("expenses") \
+        .select("*") \
+        .eq("user_id", user_id) \
+        .gte("date", start_date) \
+        .lt("date", end_exclusive) \
+        .order("date") \
+        .execute()
+
     return response.data
