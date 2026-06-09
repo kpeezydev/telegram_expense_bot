@@ -1,0 +1,21 @@
+# Environment secrets
+.env
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Agent / tooling config (not project source)
+.agents/
+.kilocode/
+.opencode/
+
+
+# Auto-generated lock file
+skills-lock.json
+
+# Runtime generated
+temp/
+
+# Openspec
+openspec/
