@@ -1,0 +1,33 @@
+name: Hourly Report
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set up GCP credentials
+        run: |
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > gcp-credentials.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/gcp-credentials.json" >> $GITHUB_ENV
+
+      - name: Generate and upload report
+        run: python generate_daily_report.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
