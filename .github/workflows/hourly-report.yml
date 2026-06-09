@@ -21,9 +21,17 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Create Google Credentials File
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}" > credentials.json
+          echo "$GCP_CREDENTIALS" > credentials.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/credentials.json" >> $GITHUB_ENV
+
+      - name: Debug environment
+        run: |
+          echo "SUPABASE_URL: ${{ secrets.SUPABASE_URL != '' && 'SET' || 'MISSING' }}"
+          echo "SUPABASE_KEY: ${{ secrets.SUPABASE_KEY != '' && 'SET' || 'MISSING' }}"
+          echo "DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID != '' && 'SET' || 'MISSING' }}"
 
       - name: Generate and upload report
         run: python generate_daily_report.py
