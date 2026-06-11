@@ -1,9 +1,7 @@
 name: Bot Service
 
-# on:
-#   schedule:
-#     - cron: "0 * * * *"
-#   workflow_dispatch:
+on:
+  workflow_dispatch:
 
 jobs:
   run-bot:
