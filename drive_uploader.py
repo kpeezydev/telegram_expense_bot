@@ -1,8 +1,14 @@
 import os
+import time
+import logging
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from dotenv import load_dotenv
+
+import metrics
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -29,9 +35,10 @@ def get_drive_service():
 
 def upload_file_to_drive(file_path: str, file_name: str, mimetype: str = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
     """Uploads a file to Google Drive."""
+    start = time.monotonic()
     service = get_drive_service()
     if not service:
-        print("Drive service not available. File will not be uploaded.")
+        logger.warning("Drive service not available. File will not be uploaded.", extra={"duration_ms": round((time.monotonic() - start) * 1000, 2)})
         return None
 
     try:
@@ -47,10 +54,13 @@ def upload_file_to_drive(file_path: str, file_name: str, mimetype: str = 'applic
             fields='id'
         ).execute()
         
-        print(f"File ID: {file.get('id')} uploaded successfully.")
+        duration = time.monotonic() - start
+        logger.info(f"File ID: {file.get('id')} uploaded successfully.", extra={"duration_ms": round(duration * 1000, 2)})
         return file.get('id')
     except Exception as e:
-        print(f"An error occurred uploading to Drive: {e}")
+        duration = time.monotonic() - start
+        logger.error(f"An error occurred uploading to Drive: {e}", extra={"duration_ms": round(duration * 1000, 2)})
+        metrics.bot_errors_total.labels(module="drive_uploader", exception_type=type(e).__name__).inc()
         return None
 
 if __name__ == '__main__':

@@ -114,6 +114,64 @@ python -c "import requests; r = requests.get('https://api.telegram.org/bot<TOKEN
 
 ---
 
+## Step 8: Set up Grafana Cloud monitoring (optional)
+
+The bot exposes Prometheus metrics at `/metrics` and supports structured JSON logging. Grafana Cloud free tier is recommended.
+
+### 8a. Sign up for Grafana Cloud
+
+1. Go to [grafana.com](https://grafana.com) and sign up for the **Free** tier
+2. Create a **Grafana** stack and a **Prometheus** data source
+3. Note your **Instance ID**, **API Key**, and **Prometheus remote write endpoint** (URL ending in `/api/prom/push`)
+
+### 8b. Configure Prometheus scraping
+
+Grafana Cloud can scrape the Cloud Run `/metrics` endpoint:
+
+**Option A — Grafana Cloud Prometheus scrape job (simplest):**
+```
+scrape_configs:
+  - job_name: 'expense-bot'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['expense-bot-xxxxx-uc.a.run.app']
+    scheme: https
+```
+
+**Option B — Prometheus remote write (requires the bot to push):**
+Set the `GRAFANA_CLOUD_PROM_URL`, `GRAFANA_CLOUD_PROM_USERNAME`, and `GRAFANA_CLOUD_PROM_PASSWORD` env vars on Cloud Run. (The bot does not currently push — this is reserved for future use.)
+
+### 8c. Connect Cloud Run logs to Loki
+
+Use Grafana's **Google Cloud Logging** data source (pull model):
+
+1. In Grafana Cloud, add a **Google Cloud Logging** data source
+2. Create a GCP service account with `roles/logging.viewer` on your project
+3. Download the service account key and upload it to Grafana Cloud
+4. Your Cloud Run logs now appear in **Explore** with the Loki data source
+
+### 8d. Import the dashboard
+
+1. In Grafana, go to **Dashboards → Import**
+2. Upload `grafana/dashboards/bot-overview.json` from this repository
+3. Select your Prometheus data source when prompted
+4. The dashboard panels will populate as metrics arrive
+
+### 8e. Environment variables reference
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `LOG_FORMAT` | No | plain-text | Set to `json` for structured JSON logs |
+| `SERVICE_NAME` | No | `expense-bot` | Service identifier in logs and metrics |
+| `GRAFANA_CLOUD_PROM_URL` | No | — | Grafana Cloud Prometheus remote write endpoint |
+| `GRAFANA_CLOUD_PROM_USERNAME` | No | — | Grafana Cloud Prometheus username (instance ID) |
+| `GRAFANA_CLOUD_PROM_PASSWORD` | No | — | Grafana Cloud Prometheus API key |
+| `GRAFANA_CLOUD_LOKI_URL` | No | — | Grafana Cloud Loki push endpoint |
+| `GRAFANA_CLOUD_LOKI_USERNAME` | No | — | Grafana Cloud Loki username (instance ID) |
+| `GRAFANA_CLOUD_LOKI_PASSWORD` | No | — | Grafana Cloud Loki API key |
+
+---
+
 ## Redeploying after changes
 
 Env vars are preserved by Cloud Run, so future deploys are one command:

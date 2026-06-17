@@ -1,9 +1,15 @@
 import os
 import json
+import time
+import logging
 from google import genai
 from google.genai import types
 from datetime import datetime
 from dotenv import load_dotenv
+
+import metrics
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -13,9 +19,10 @@ api_key = os.getenv("GEMINI_API_KEY")
 def parse_user_message(message: str) -> dict:
     """Parses a user message using the new google-genai SDK."""
     if not api_key:
-        print("Warning: GEMINI_API_KEY is not set.")
+        logger.warning("GEMINI_API_KEY is not set.")
         return {"intent": "unknown"}
         
+    start = time.monotonic()
     try:
         # Initialize Google GenAI client
         client = genai.Client(api_key=api_key)
@@ -116,10 +123,15 @@ Resolve relative time expressions based on today's date ({current_date}):
         
         result_text = response.text
         result_json = json.loads(result_text)
+        duration = time.monotonic() - start
+        metrics.bot_gemini_duration_seconds.observe(duration)
+        logger.info("Gemini parse completed", extra={"duration_ms": round(duration * 1000, 2)})
         return result_json
-        
+
     except Exception as e:
-        print(f"Error parsing message with Gemini: {e}")
+        duration = time.monotonic() - start
+        logger.error(f"Error parsing message with Gemini: {e}", extra={"duration_ms": round(duration * 1000, 2)})
+        metrics.bot_errors_total.labels(module="ai_parser", exception_type=type(e).__name__).inc()
         return {"intent": "unknown", "error": str(e)}
 
 if __name__ == "__main__":

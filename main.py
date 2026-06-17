@@ -1,22 +1,57 @@
 import os
+import uuid
 import logging
+import time
 from datetime import datetime
+from contextvars import ContextVar
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import Response
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 import uvicorn
 
 import supabase_client
 from ai_parser import parse_user_message
+import metrics
+from prometheus_client import generate_latest, REGISTRY, CONTENT_TYPE_LATEST
 
-# Setup logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+trace_id_var: ContextVar[str] = ContextVar("trace_id", default="")
+user_id_var: ContextVar[int] = ContextVar("user_id", default=0)
+
+class LogContextFilter(logging.Filter):
+    def filter(self, record):
+        tid = trace_id_var.get()
+        if tid:
+            record.trace_id = tid
+        uid = user_id_var.get()
+        if uid:
+            record.user_id = uid
+        return True
+
+log_format = os.getenv("LOG_FORMAT", "")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "expense-bot")
+
+if log_format == "json":
+    from pythonjsonlogger import jsonlogger
+    handler = logging.StreamHandler()
+    formatter = jsonlogger.JsonFormatter(
+        fmt="%(asctime)s %(levelname)s %(name)s %(message)s %(trace_id)s %(user_id)s %(service)s",
+        timestamp=True,
+    )
+    handler.setFormatter(formatter)
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
+else:
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.INFO
+    )
+
+for logger_name in ("__main__", "ai_parser", "supabase_client", "drive_uploader", "generate_daily_report"):
+    logging.getLogger(logger_name).addFilter(LogContextFilter())
+
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -48,7 +83,9 @@ def authorized(func):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for the /start command."""
     user_id = update.effective_user.id
+    user_id_var.set(user_id)
     active_users.add(user_id)
+    metrics.bot_active_users.set(len(active_users))
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -82,6 +119,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles all incoming text messages."""
     user_id = update.effective_user.id
+    user_id_var.set(user_id)
     text = update.message.text
 
     # Parse the message using Gemini
@@ -337,6 +375,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+@app.middleware("http")
+async def trace_id_middleware(request: Request, call_next):
+    tid = str(uuid.uuid4())
+    trace_id_var.set(tid)
+    user_id_var.set(0)
+    start_time = time.monotonic()
+    response = await call_next(request)
+    duration = time.monotonic() - start_time
+    handler_name = request.url.path
+    status = "success" if response.status_code < 500 else "error"
+    metrics.bot_requests_total.labels(handler=handler_name, status=status).inc()
+    metrics.bot_request_duration_seconds.labels(handler=handler_name).observe(duration)
+    return response
+
 @app.post("/webhook")
 async def webhook(request: Request):
     secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
@@ -347,6 +399,10 @@ async def webhook(request: Request):
     update = Update.de_json(json_data, application.bot)
     await application.process_update(update)
     return {"ok": True}
+
+@app.get("/metrics")
+async def metrics_endpoint():
+    return Response(content=generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 @app.get("/health")
 async def health():

@@ -1,0 +1,123 @@
+{
+  "title": "Expense Bot - Operational Overview",
+  "description": "Operational dashboard for the Telegram Expense Bot: request rates, error rates, Gemini/Supabase latency, active users, and expense throughput.",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["expense-bot", "telegram", "observability"],
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "value": "grafanacloud-prom" },
+        "hide": 0,
+        "label": "Data Source"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(bot_requests_total[5m])",
+          "legendFormat": "{{handler}} - {{status}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "description": "Request rate per handler per 5-minute window"
+    },
+    {
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(bot_errors_total[5m])",
+          "legendFormat": "{{module}} - {{exception_type}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "description": "Error rate per module per 5-minute window"
+    },
+    {
+      "title": "Active Users",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "bot_active_users",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "description": "Number of unique active users in the current process"
+    },
+    {
+      "title": "Gemini Latency (p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(bot_gemini_duration_seconds_bucket[5m]))",
+          "legendFormat": "p99",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "description": "Gemini API p99 latency over 5-minute windows"
+    },
+    {
+      "title": "Gemini Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(bot_gemini_duration_seconds_bucket[5m]))",
+          "legendFormat": "p50",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(bot_gemini_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(bot_gemini_duration_seconds_bucket[5m]))",
+          "legendFormat": "p99",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "description": "Gemini API latency quantiles over 5-minute windows"
+    },
+    {
+      "title": "Supabase Latency by Operation",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(bot_supabase_duration_seconds_sum[5m]) / rate(bot_supabase_duration_seconds_count[5m])",
+          "legendFormat": "{{operation}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "description": "Average Supabase query latency per operation"
+    },
+    {
+      "title": "Expense Throughput",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(bot_requests_total{handler=\"/webhook\",status=\"success\"}[24h])",
+          "legendFormat": "successful webhooks",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "description": "Expense throughput based on successful webhook rate over 24 hours"
+    }
+  ]
+}

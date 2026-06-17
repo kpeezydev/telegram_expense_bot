@@ -11,3 +11,5 @@ supabase
 fastapi
 uvicorn[standard]
 gunicorn
+prometheus-client
+python-json-logger
