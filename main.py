@@ -1,9 +1,13 @@
 import os
 import logging
 from datetime import datetime
+from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
+from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+import uvicorn
 
 import supabase_client
 from ai_parser import parse_user_message
@@ -17,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+LOCAL_MODE = os.getenv("LOCAL", "").lower() == "true"
 
 # A set to keep track of users who have started the bot
 active_users = set()
@@ -308,18 +313,59 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="I'm not sure what you mean. You can tell me an expense (e.g., 'spent 10 on food'), ask for 'total expense', list expenses by timeframe (e.g., 'show my expenses this month'), or delete an expense (e.g., 'delete expense test - $10 - Jun 9')."
         )
 
+# Build application at module level (shared by polling and webhook modes)
+application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build() if TELEGRAM_BOT_TOKEN else None
+
+if application:
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+
+# FastAPI app for webhook mode (Cloud Run)
+SECRET_TOKEN = os.getenv("SECRET_TOKEN")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if application:
+        await application.initialize()
+        await application.start()
+        logger.info("Bot application started (webhook mode)")
+    yield
+    if application:
+        await application.stop()
+        await application.shutdown()
+        logger.info("Bot application stopped")
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post("/webhook")
+async def webhook(request: Request):
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if SECRET_TOKEN and secret != SECRET_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid secret token")
+
+    json_data = await request.json()
+    update = Update.de_json(json_data, application.bot)
+    await application.process_update(update)
+    return {"ok": True}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 if __name__ == '__main__':
     if not TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN is not set in .env file.")
         exit(1)
 
-    application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-
-    # Handlers
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('help', help_command))
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-
-    logger.info("Bot is starting...")
-    # This call blocks until the bot is stopped
-    application.run_polling()
+    webhook_url = os.getenv("WEBHOOK_URL")
+    if LOCAL_MODE:
+        logger.info("Bot is starting (polling mode)...")
+        application.run_polling()
+    elif webhook_url:
+        port = int(os.getenv("PORT", 8080))
+        logger.info(f"Starting webhook server on port {port}")
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    else:
+        logger.info("Bot is starting (polling mode)...")
+        application.run_polling()

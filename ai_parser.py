@@ -89,6 +89,9 @@ Resolve relative time expressions based on today's date ({current_date}):
                         "data": {
                             "type": "OBJECT",
                             "properties": {
+                                "description": {"type": "STRING"},
+                                "amount": {"type": "NUMBER"},
+                                "date": {"type": "STRING"},
                                 "expenses": {
                                     "type": "ARRAY",
                                     "items": {

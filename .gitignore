@@ -19,3 +19,6 @@ temp/
 
 # Openspec
 openspec/
+
+# Graphify knowledge graph
+graphify-out/

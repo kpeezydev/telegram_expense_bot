@@ -1,0 +1,8 @@
+__pycache__
+.env
+.git
+temp/
+.opencode/
+openspec/
+*.md
+.DS_Store
