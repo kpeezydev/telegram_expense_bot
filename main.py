@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+LOCAL_MODE = os.getenv("LOCAL", "").lower() == "true"
 
 # A set to keep track of users who have started the bot
 active_users = set()
@@ -358,7 +359,10 @@ if __name__ == '__main__':
         exit(1)
 
     webhook_url = os.getenv("WEBHOOK_URL")
-    if webhook_url:
+    if LOCAL_MODE:
+        logger.info("Bot is starting (polling mode)...")
+        application.run_polling()
+    elif webhook_url:
         port = int(os.getenv("PORT", 8080))
         logger.info(f"Starting webhook server on port {port}")
         uvicorn.run(app, host="0.0.0.0", port=port)

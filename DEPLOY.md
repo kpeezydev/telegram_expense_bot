@@ -145,4 +145,4 @@ gcloud run services update-traffic expense-bot --to-revisions=REVISION_NAME=100 
 gcloud run services delete expense-bot --region us-central1
 ```
 
-To switch back to local polling, just unset or remove `WEBHOOK_URL` from `.env` and run `python main.py` as before.
+To switch back to local polling, set `LOCAL=true` in `.env` (or pass it as an environment variable) and run `python main.py`.
