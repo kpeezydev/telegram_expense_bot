@@ -31,6 +31,23 @@ Check existing code before writing new code. Reuse and extend before creating. I
 
 **Code readability priority** — Favor clarity and intent-revealing code over brevity or cleverness. Use descriptive names, avoid deeply nested logic, extract meaningful helper functions, and keep functions focused on a single responsibility. Readability is the default; optimize for the next reader, not the writer.
 
+## Skill triggers by intent
+
+Invoke `skill` tool with the matching skill **before** starting any work in these areas:
+
+| Intent / task | Skill to invoke |
+|---|---|
+| Codebase questions, architecture, file relationships | `graphify` |
+| Python tooling (uv, ruff, formatting, type-checking) | `modern-python` |
+| Supabase: database, auth, schema, RLS, migrations, Edge Functions, Realtime, client libraries | `supabase` |
+| Postgres query/schema performance optimization | `supabase-postgres-best-practices` |
+| Cloud Run deployment (services, jobs, worker pools) | `cloud-run-basics` |
+
+
+Rules:
+- Invoke only one skill per task — the one that best matches the primary intent.
+- If the task touches multiple areas (e.g. a Supabase change that also adds a Python script), invoke the skill for the primary intent and note the secondary concern in your prompt.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
