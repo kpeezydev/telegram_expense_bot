@@ -17,9 +17,6 @@ skills-lock.json
 # Runtime generated
 temp/
 
-# GCP service account key (download only — never commit)
-gcp-sa-key.json
-
 # Openspec
 openspec/
 

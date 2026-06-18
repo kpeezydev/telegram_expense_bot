@@ -28,7 +28,7 @@ jobs:
             --region us-central1 \
             --format='value(status.url)')
           echo "Service URL: $SERVICE_URL"
-          curl -sf --max-time 10 "$SERVICE_URL" > /dev/null && \
+          curl -sf --max-time 10 "$SERVICE_URL/health" > /dev/null && \
             echo "✓ Bot service is up and responding" || \
             (echo "✗ Bot service is not responding"; exit 1)
 
